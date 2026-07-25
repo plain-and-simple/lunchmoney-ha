@@ -127,6 +127,19 @@ def _parse_timestamp(raw: Any) -> datetime | None:
     return None
 
 
+def normalise_status(raw: Any) -> str | None:
+    """Return a Plaid status Home Assistant can actually label.
+
+    Lunch Money reports two of its statuses with a space in them — "not found"
+    and "not supported". Home Assistant requires translation keys to match
+    [a-z0-9-_]+, so passing those through unchanged produces a state with no
+    label, at precisely the moment the user needs to read one.
+    """
+    if not raw:
+        return None
+    return str(raw).replace(" ", "_")
+
+
 def _normalise_currency(raw: Any) -> str:
     """Return an upper-case ISO currency code for Home Assistant's unit check.
 
@@ -146,7 +159,7 @@ def account_from_plaid(raw: dict[str, Any]) -> LunchMoneyAccount:
     The field names are identical on v1 and v2, so one parser serves both.
     """
     account_id = int(raw["id"])
-    status = raw.get("status")
+    status = normalise_status(raw.get("status"))
 
     return LunchMoneyAccount(
         key=f"{SOURCE_PLAID}_{account_id}",

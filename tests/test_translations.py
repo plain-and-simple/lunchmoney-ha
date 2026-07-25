@@ -63,6 +63,28 @@ def test_every_api_version_option_is_labelled() -> None:
         assert version in options, f"missing selector.api_version.options.{version}"
 
 
+def test_translation_keys_are_slugs() -> None:
+    """Home Assistant requires [a-z0-9-_]+ and rejects the whole file otherwise.
+
+    Lunch Money reports two statuses with a space in them, which is exactly how
+    this rule gets broken by accident.
+    """
+
+    def walk(node: object, path: str) -> None:
+        if not isinstance(node, dict):
+            return
+        for key, value in node.items():
+            # Only key positions are constrained; the prose values are free.
+            if (
+                path.endswith((".state", "entity.sensor", "entity.button"))
+                or ".options" in path
+            ):
+                assert re.fullmatch(r"[a-z0-9_-]+", key), f"{path}.{key} is not a slug"
+            walk(value, f"{path}.{key}")
+
+    walk(STRINGS, "")
+
+
 def test_every_connection_status_is_labelled() -> None:
     """Lunch Money can report any of these, including on a bad day.
 

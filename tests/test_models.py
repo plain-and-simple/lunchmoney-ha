@@ -9,6 +9,7 @@ from __future__ import annotations
 
 from decimal import Decimal
 
+from custom_components.lunchmoney.const import PLAID_STATUSES
 from custom_components.lunchmoney.models import (
     account_from_manual,
     account_from_plaid,
@@ -166,3 +167,21 @@ def test_manual_accounts_have_no_connection_status() -> None:
         ).status
         is None
     )
+
+
+def test_statuses_with_spaces_become_slugs() -> None:
+    """Two of Lunch Money's statuses contain a space.
+
+    Home Assistant rejects a translation key that is not [a-z0-9-_]+, so an
+    account whose bank Plaid cannot find would otherwise show a raw, unlabelled
+    state — at the exact moment the user needs to read what went wrong.
+    """
+    for raw, expected in (
+        ("not found", "not_found"),
+        ("not supported", "not_supported"),
+    ):
+        account = account_from_plaid(
+            {"id": 1, "name": "x", "balance": "1", "status": raw}
+        )
+        assert account.status == expected
+        assert account.status in PLAID_STATUSES

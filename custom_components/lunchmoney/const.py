@@ -56,17 +56,23 @@ LIABILITY_TYPES: Final = frozenset(
     }
 )
 
-# The exact status enum a Plaid-linked account can report, taken from Lunch
-# Money's own generated API types. Home Assistant validates an enum sensor's
-# state against this list and logs an error for anything unlisted, so a value
-# missing here becomes a visible bug rather than a silent one.
+# The status enum a Plaid-linked account can report, taken from Lunch Money's own
+# generated API types. Home Assistant validates an enum sensor's state against
+# this list and logs an error for anything unlisted, so a value missing here
+# becomes a visible bug rather than a silent one.
+#
+# Two of Lunch Money's values contain a space ("not found", "not supported").
+# Home Assistant translation keys must match [a-z0-9-_]+, so those two states
+# would have shipped with no label at all — showing a raw key at exactly the
+# moment something has gone wrong. The spaces are replaced on the way in; see
+# normalise_status() in models.py.
 PLAID_STATUSES: Final = [
     "active",
     "inactive",
     "closed",
     "deactivated",
-    "not found",
-    "not supported",
+    "not_found",
+    "not_supported",
     "relink",
     "syncing",
     "revoked",
