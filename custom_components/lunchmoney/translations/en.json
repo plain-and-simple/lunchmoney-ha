@@ -1,0 +1,104 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "Connect Lunch Money",
+        "description": "Home Assistant needs an access token to read your balances.\n\nIn Lunch Money, open **Settings › Developers** ({developers_url}) and choose **Request new access token**. Give it a label you will recognise later — something like `Home Assistant` — then copy the token and paste it below.\n\nThe token is read-only as far as this integration is concerned: it only ever fetches accounts and asks Lunch Money to refresh from your banks. It never changes your data.",
+        "data": {
+          "api_key": "Access token"
+        },
+        "data_description": {
+          "api_key": "The token is stored in Home Assistant and never leaves it, except in requests to Lunch Money."
+        }
+      },
+      "reauth_confirm": {
+        "title": "Reconnect Lunch Money",
+        "description": "Lunch Money is no longer accepting the stored token for **{budget_name}**. This usually means the token was revoked or regenerated.\n\nCreate a new one under **Settings › Developers** ({developers_url}) and paste it below. Your existing sensors and their recorded history are kept.",
+        "data": {
+          "api_key": "Access token"
+        },
+        "data_description": {
+          "api_key": "Must belong to the same Lunch Money budget as before."
+        }
+      }
+    },
+    "error": {
+      "invalid_auth": "Lunch Money rejected that token. Check that you copied all of it, and that it has not been revoked.",
+      "cannot_connect": "Could not reach Lunch Money. Check this machine's internet connection and try again.",
+      "rate_limited": "Lunch Money is rate limiting this connection. Wait a minute and try again.",
+      "no_account": "That token works, but it is not attached to a Lunch Money budget. Create the token from inside the budget you want to track.",
+      "unknown": "Something unexpected went wrong. The Home Assistant log has the details."
+    },
+    "abort": {
+      "already_configured": "This Lunch Money budget has already been added.",
+      "reauth_successful": "Lunch Money is reconnected.",
+      "wrong_account": "That token belongs to a different Lunch Money budget. Use a token from the same budget, or add the other budget as a separate integration."
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "Lunch Money options",
+        "description": "How often to check, and which accounts to include.",
+        "data": {
+          "scan_interval": "Update interval",
+          "include_closed": "Include closed accounts",
+          "api_version": "API version"
+        },
+        "data_description": {
+          "scan_interval": "How often to ask Lunch Money for balances. Lunch Money itself only syncs with your banks a few times a day, so checking more often than every 15 minutes rarely shows you anything new.",
+          "include_closed": "Create sensors for accounts you have closed in Lunch Money. Off by default, because a closed account's balance never changes again.",
+          "api_version": "Leave this on Automatic. It picks the current API and falls back to the older one if the current one stops working. Only pin a version if you have been asked to."
+        }
+      }
+    }
+  },
+  "selector": {
+    "api_version": {
+      "options": {
+        "auto": "Automatic (recommended)",
+        "v2": "Always use v2",
+        "v1": "Always use v1"
+      }
+    }
+  },
+  "entity": {
+    "sensor": {
+      "balance": {
+        "name": "Balance"
+      },
+      "last_updated": {
+        "name": "Last updated"
+      },
+      "connection": {
+        "name": "Connection",
+        "state": {
+          "active": "Active",
+          "inactive": "Inactive",
+          "closed": "Closed",
+          "deactivated": "Deactivated",
+          "not found": "Not found",
+          "not supported": "Not supported",
+          "relink": "Needs relinking",
+          "syncing": "Syncing",
+          "revoked": "Access revoked",
+          "error": "Error"
+        }
+      },
+      "net_worth": {
+        "name": "Net worth"
+      },
+      "total_assets": {
+        "name": "Total assets"
+      },
+      "total_liabilities": {
+        "name": "Total liabilities"
+      }
+    },
+    "button": {
+      "refresh": {
+        "name": "Refresh from banks"
+      }
+    }
+  }
+}

@@ -1,0 +1,11 @@
+# Mirrors the import style Home Assistant core uses, so contributions that pass
+# here also pass a core review.
+target-version = "py313"
+
+[lint]
+select = ["E", "F", "W", "I", "UP", "B", "SIM", "RUF"]
+
+[lint.isort]
+force-sort-within-sections = true
+combine-as-imports = true
+known-first-party = ["homeassistant", "custom_components"]
