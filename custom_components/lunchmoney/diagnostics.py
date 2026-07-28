@@ -3,6 +3,12 @@
 The point of this file is that a user can attach a bug report without ever
 pasting a live access token — or their account numbers — into a public GitHub
 issue.
+
+What it does *not* strip is balances and institution names; see the comment on
+`accounts` below for why. That makes the output revealing without being
+identifying, which is a trade the user should get to make knowingly rather than
+discover afterwards — so the README's "Reporting a bug" section spells out
+exactly what is kept and what is removed. Change either and change both.
 """
 
 from __future__ import annotations

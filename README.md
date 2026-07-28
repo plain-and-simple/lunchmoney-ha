@@ -140,8 +140,9 @@ from your banks when you press the button. It never creates, edits or deletes
 anything in your budget.
 
 Your token is stored in Home Assistant and sent only to `api.lunchmoney.dev`.
-Diagnostics downloads have it redacted, along with card mask digits, so a
-diagnostics file is safe to attach to a public issue.
+Diagnostics downloads have it redacted, along with card mask digits — but read
+**Reporting a bug** below before attaching one anywhere public, because your
+balances are deliberately still in there.
 
 ## Development
 
@@ -165,6 +166,28 @@ paths that unit tests mock away:
 ```bash
 ./scripts/run_live_check.sh
 ```
+
+## Reporting a bug
+
+**Settings → Devices & services → Lunch Money → ⋮ → Download diagnostics** gives
+you a file with most of what a bug report needs. Read it before you attach it
+anywhere — a GitHub issue is public, and this file is not fully anonymous.
+
+**Removed** — your access token, your account ID, the last four digits of each
+card, and Plaid's internal identifiers.
+
+**Kept, on purpose** — your account names, the institutions you bank with, your
+balances and your credit limits.
+
+That last part is a deliberate trade, not an oversight. Nearly every bug worth
+reporting here is some version of "the number is wrong", and that is not
+diagnosable without the numbers. Redacting them would mostly mean asking you for
+them again.
+
+So: it tells anyone reading where you bank and how much is in each account. If
+that's fine, attach it as-is — it is by far the most useful thing you can send.
+If it isn't, open it in a text editor and replace the balances first, or email
+it instead of posting it. Either is more useful than no diagnostics at all.
 
 ## Not included (yet)
 
