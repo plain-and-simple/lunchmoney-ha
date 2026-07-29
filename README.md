@@ -81,6 +81,12 @@ entities:
 
 Your entity IDs will differ — they are built from your own account names.
 
+For something more finished, [`dashboards/`](dashboards/) carries a two-view
+dashboard — accounts past a staleness threshold, and accounts grouped by type —
+with [`SETUP.md`](dashboards/SETUP.md) explaining what it needs. That one wants
+two HACS frontend plugins; the plain Markdown table documented alongside it needs
+none.
+
 ## Things worth automating
 
 **Tell me when a bank link breaks.** Lunch Money quietly stops updating a balance

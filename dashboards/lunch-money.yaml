@@ -1,0 +1,389 @@
+# Lunch Money dashboard — paste into a dashboard's Raw configuration editor.
+#
+# HACS frontend plugins required:
+#   - lovelace-auto-entities (thomasloven)
+#   - lovelace-mushroom      (piitaya)
+#
+# Core requirements:
+#   - Time & Date integration with the "time" entity enabled  ->  sensor.time
+#   - input_number.lunchmoney_stale_hours                     ->  see SETUP.md
+#
+# Nothing below hard-codes an account, an entity id, or your budget name.
+# Accounts are discovered through integration_entities('lunchmoney') and the
+# `source` attribute, which only the per-account balance sensors carry — so a
+# bank you link next month appears here on its own.
+
+views:
+  # ---------------------------------------------------------------------------
+  # View 1 — which accounts have gone quiet
+  # ---------------------------------------------------------------------------
+  - title: Stale data
+    path: stale
+    icon: mdi:clock-alert-outline
+    type: sections
+    max_columns: 2
+    sections:
+      - type: grid
+        cards:
+          - type: heading
+            heading: Freshness
+            heading_style: title
+            icon: mdi:clock-alert-outline
+
+          # Always-present summary, so the view never looks broken when
+          # everything happens to be fresh.
+          - type: custom:mushroom-template-card
+            primary: >-
+              {% set cutoff = states('input_number.lunchmoney_stale_hours') | float(24) %}
+              {% set ns = namespace(stale=0, total=0) %}
+              {% for e in integration_entities('lunchmoney')
+                   if state_attr(e, 'source') in ['manual', 'plaid'] %}
+                {% set ns.total = ns.total + 1 %}
+                {% set tss = device_entities(device_id(e)) | select('search', '_last_updated$') | list %}
+                {% set when = states(tss[0]) | as_datetime(default=none) if tss else none %}
+                {% if when is none or (now() - when).total_seconds() / 3600 >= cutoff %}
+                  {% set ns.stale = ns.stale + 1 %}
+                {% endif %}
+              {% endfor %}
+              {{ ns.stale }} of {{ ns.total }} accounts stale
+            secondary: >-
+              Threshold: {{ states('input_number.lunchmoney_stale_hours') | int(24) }}h
+            icon: >-
+              {% set cutoff = states('input_number.lunchmoney_stale_hours') | float(24) %}
+              {% set ns = namespace(stale=0) %}
+              {% for e in integration_entities('lunchmoney')
+                   if state_attr(e, 'source') in ['manual', 'plaid'] %}
+                {% set tss = device_entities(device_id(e)) | select('search', '_last_updated$') | list %}
+                {% set when = states(tss[0]) | as_datetime(default=none) if tss else none %}
+                {% if when is none or (now() - when).total_seconds() / 3600 >= cutoff %}
+                  {% set ns.stale = ns.stale + 1 %}
+                {% endif %}
+              {% endfor %}
+              {{ 'mdi:check-circle-outline' if ns.stale == 0 else 'mdi:alert-circle-outline' }}
+            icon_color: >-
+              {% set cutoff = states('input_number.lunchmoney_stale_hours') | float(24) %}
+              {% set ns = namespace(stale=0) %}
+              {% for e in integration_entities('lunchmoney')
+                   if state_attr(e, 'source') in ['manual', 'plaid'] %}
+                {% set tss = device_entities(device_id(e)) | select('search', '_last_updated$') | list %}
+                {% set when = states(tss[0]) | as_datetime(default=none) if tss else none %}
+                {% if when is none or (now() - when).total_seconds() / 3600 >= cutoff %}
+                  {% set ns.stale = ns.stale + 1 %}
+                {% endif %}
+              {% endfor %}
+              {{ 'green' if ns.stale == 0 else 'orange' }}
+
+          # The "X hours or days ago" control.
+          - type: custom:mushroom-number-card
+            entity: input_number.lunchmoney_stale_hours
+            name: Show accounts older than
+            icon: mdi:timer-sand
+            display_mode: slider
+
+          # Ask Lunch Money to re-pull from the banks. Found by entity id
+          # pattern so the budget name stays out of this file.
+          - type: custom:auto-entities
+            show_empty: false
+            card:
+              type: grid
+              columns: 1
+              square: false
+            card_param: cards
+            filter:
+              include:
+                - integration: lunchmoney
+                  domain: button
+                  options:
+                    type: custom:mushroom-entity-card
+                    icon: mdi:bank-transfer
+                    tap_action:
+                      action: toggle
+
+      - type: grid
+        cards:
+          - type: heading
+            heading: Needs attention
+            heading_style: title
+
+          # The list itself: one Mushroom card per stale account, most stale
+          # first. Emitting card configs (not entity rows) is what buys the
+          # colour coding and the connection badge.
+          - type: custom:auto-entities
+            show_empty: false
+            card:
+              type: grid
+              columns: 1
+              square: false
+            card_param: cards
+            filter:
+              template: |
+                {# sensor.time guarantees this re-renders on the minute tick,
+                   regardless of how your auto-entities version treats now(). #}
+                {% set _ = states('sensor.time') %}
+                {% set cutoff = states('input_number.lunchmoney_stale_hours') | float(24) %}
+                {% set ns = namespace(rows=[]) %}
+                {% for e in integration_entities('lunchmoney')
+                     if state_attr(e, 'source') in ['manual', 'plaid'] %}
+                  {% set tss = device_entities(device_id(e)) | select('search', '_last_updated$') | list %}
+                  {% set conns = device_entities(device_id(e)) | select('search', '_connection$') | list %}
+                  {% if tss %}
+                    {% set when = states(tss[0]) | as_datetime(default=none) %}
+                    {# A never-reported account is the worst case, not an absent
+                       one — so it sorts to the top rather than being dropped. #}
+                    {% set age = 99999 if when is none
+                                 else (now() - when).total_seconds() / 3600 %}
+                    {% if age >= cutoff %}
+                      {% set ns.rows = ns.rows + [(age, e, tss[0], when,
+                                                   conns[0] if conns else none)] %}
+                    {% endif %}
+                  {% endif %}
+                {% endfor %}
+                {% for age, e, ts, when, conn in ns.rows | sort(reverse=true) %}
+                  {% set broken = conn is not none
+                                  and states(conn) in ['relink', 'error', 'revoked', 'not_found'] %}
+                  {{
+                    {
+                      'type': 'custom:mushroom-template-card',
+                      'entity': ts,
+                      'primary': state_attr(e, 'friendly_name') | replace(' Balance', ''),
+                      'secondary': (
+                        ('never updated' if when is none else relative_time(when) ~ ' ago')
+                        ~ ' · ' ~ states(e) ~ ' ' ~ (state_attr(e, 'unit_of_measurement') or '')
+                        ~ (' · ' ~ states(conn) if broken else '')
+                      ),
+                      'icon': 'mdi:clock-alert-outline',
+                      'icon_color': ('red' if when is none or age > cutoff * 3 else 'orange'),
+                      'badge_icon': ('mdi:link-off' if broken else none),
+                      'badge_color': ('red' if broken else none),
+                      'tap_action': {'action': 'more-info'},
+                      'hold_action': {'action': 'more-info'},
+                    }
+                  }},
+                {% endfor %}
+
+  # ---------------------------------------------------------------------------
+  # View 2 — accounts grouped
+  # ---------------------------------------------------------------------------
+  - title: Groups
+    path: groups
+    icon: mdi:folder-account-outline
+    type: sections
+    max_columns: 3
+    sections:
+      - type: grid
+        cards:
+          - type: heading
+            heading: Totals
+            heading_style: title
+            icon: mdi:scale-balance
+          - type: custom:auto-entities
+            card:
+              type: grid
+              columns: 1
+              square: false
+            card_param: cards
+            filter:
+              include:
+                - integration: lunchmoney
+                  entity_id: /_(net_worth|total_assets|total_liabilities)$/
+                  options:
+                    type: custom:mushroom-entity-card
+
+      # Each group below is the same block with one attribute changed. The
+      # account_type values come straight from Lunch Money; regex covers the
+      # cases where two of its types belong under one human heading.
+      - type: grid
+        cards:
+          - type: heading
+            heading: Credit cards
+            heading_style: title
+            icon: mdi:credit-card-outline
+          - type: custom:mushroom-template-card
+            primary: Total owed
+            secondary: >-
+              {% set ns = namespace(t=0) %}
+              {% for e in integration_entities('lunchmoney')
+                   if state_attr(e, 'account_type') == 'credit' %}
+                {% set ns.t = ns.t + (state_attr(e, 'balance_in_primary_currency') | float(0)) %}
+              {% endfor %}
+              {{ ns.t | round(2) }}
+            icon: mdi:cash-minus
+            icon_color: red
+          - type: custom:auto-entities
+            show_empty: false
+            card:
+              type: grid
+              columns: 1
+              square: false
+            card_param: cards
+            filter:
+              include:
+                - integration: lunchmoney
+                  attributes:
+                    account_type: credit
+                  options:
+                    type: custom:mushroom-entity-card
+                    secondary_info: last-changed
+            sort:
+              method: state
+              numeric: true
+              reverse: true
+
+      - type: grid
+        cards:
+          - type: heading
+            heading: Banking
+            heading_style: title
+            icon: mdi:bank-outline
+          - type: custom:auto-entities
+            show_empty: false
+            card:
+              type: grid
+              columns: 1
+              square: false
+            card_param: cards
+            filter:
+              include:
+                - integration: lunchmoney
+                  attributes:
+                    account_type: /^(depository|cash)$/
+                  options:
+                    type: custom:mushroom-entity-card
+                    secondary_info: last-changed
+            sort:
+              method: state
+              numeric: true
+              reverse: true
+
+      - type: grid
+        cards:
+          - type: heading
+            heading: Investments
+            heading_style: title
+            icon: mdi:chart-line
+          - type: custom:auto-entities
+            show_empty: false
+            card:
+              type: grid
+              columns: 1
+              square: false
+            card_param: cards
+            filter:
+              include:
+                - integration: lunchmoney
+                  attributes:
+                    account_type: /^(investment|cryptocurrency|employee compensation)$/
+                  options:
+                    type: custom:mushroom-entity-card
+                    secondary_info: last-changed
+            sort:
+              method: state
+              numeric: true
+              reverse: true
+
+      - type: grid
+        cards:
+          - type: heading
+            heading: Loans
+            heading_style: title
+            icon: mdi:file-document-outline
+          - type: custom:auto-entities
+            show_empty: false
+            card:
+              type: grid
+              columns: 1
+              square: false
+            card_param: cards
+            filter:
+              include:
+                - integration: lunchmoney
+                  attributes:
+                    account_type: /^(loan|other liability)$/
+                  options:
+                    type: custom:mushroom-entity-card
+                    secondary_info: last-changed
+            sort:
+              method: state
+              numeric: true
+              reverse: true
+
+      - type: grid
+        cards:
+          - type: heading
+            heading: Property
+            heading_style: title
+            icon: mdi:home-outline
+          - type: custom:auto-entities
+            show_empty: false
+            card:
+              type: grid
+              columns: 1
+              square: false
+            card_param: cards
+            filter:
+              include:
+                - integration: lunchmoney
+                  attributes:
+                    account_type: /^(real estate|vehicle)$/
+                  options:
+                    type: custom:mushroom-entity-card
+                    secondary_info: last-changed
+            sort:
+              method: state
+              numeric: true
+              reverse: true
+
+      # Catch-all, so a Lunch Money account type we did not anticipate can never
+      # silently disappear from this view.
+      - type: grid
+        cards:
+          - type: heading
+            heading: Everything else
+            heading_style: title
+            icon: mdi:dots-horizontal
+          - type: custom:auto-entities
+            show_empty: false
+            card:
+              type: grid
+              columns: 1
+              square: false
+            card_param: cards
+            filter:
+              include:
+                - integration: lunchmoney
+                  attributes:
+                    source: /^(manual|plaid)$/
+                  options:
+                    type: custom:mushroom-entity-card
+                    secondary_info: last-changed
+              exclude:
+                - attributes:
+                    account_type: /^(credit|depository|cash|investment|cryptocurrency|employee compensation|loan|other liability|real estate|vehicle)$/
+
+      # Custom groupings that do not follow account type — assign the label in
+      # Settings > Areas, labels & zones, then tag the balance entities with it.
+      # Duplicate this block per label. Delete it if you are not using labels.
+      - type: grid
+        cards:
+          - type: heading
+            heading: Joint accounts
+            heading_style: title
+            icon: mdi:account-multiple-outline
+          - type: custom:auto-entities
+            show_empty: false
+            card:
+              type: grid
+              columns: 1
+              square: false
+            card_param: cards
+            filter:
+              template: |
+                {% for e in label_entities('joint') if state_attr(e, 'source') is not none %}
+                  {{
+                    {
+                      'type': 'custom:mushroom-entity-card',
+                      'entity': e,
+                      'secondary_info': 'last-changed',
+                    }
+                  }},
+                {% endfor %}
